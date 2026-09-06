@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Polar Alignment</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: #000; color: #fff;
+    font-family: -apple-system, Roboto, "Segoe UI", sans-serif;
+    height: 100%; overflow-x: hidden; user-select: none;
+  }
+  #app { max-width: 480px; margin: 0 auto; padding: 12px 12px 32px; }
+  h1 { font-size: 1.1rem; text-align: center; margin: 8px 0 2px; color: #fff; font-weight: 600; }
+  .sub { text-align: center; color: #ff3b30; font-size: 0.85rem; margin-bottom: 6px; }
+  .quality-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 10px 0; }
+  .qbox { width: 26px; height: 26px; border-radius: 4px; opacity: 0.25; transition: opacity .15s; }
+  .qbox.on { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  .qlabel { margin-left: 8px; font-size: 1rem; font-weight: 600; }
+  svg { display: block; margin: 6px auto; width: 100%; max-width: 380px; height: auto; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 0.78rem; color: #ccc; margin: 10px 4px; }
+  .stat-grid div span { color: #fff; font-weight: 600; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  button {
+    flex: 1; min-width: 90px; border: none; border-radius: 22px; padding: 12px 10px;
+    background: #ff3b30; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  }
+  button.secondary { background: #333; }
+  button:active { filter: brightness(0.85); }
+  .modeRow { display:flex; gap:8px; justify-content:center; margin: 6px 0 4px; }
+  .modeBtn { flex:1; max-width:170px; border:2px solid #555; background:#111; color:#aaa; border-radius:18px; padding:8px 6px; font-size:0.85rem; font-weight:700; }
+  .modeBtn.active { border-color:#34c759; color:#fff; background:#1a2a1c; }
+  #status { text-align:center; font-size:0.78rem; color:#999; margin-top:10px; min-height: 1.2em; }
+  .offsetRow { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:8px; font-size:0.85rem; }
+  .offsetRow input { width: 70px; background:#111; color:#fff; border:1px solid #444; border-radius:6px; padding:6px; text-align:center; }
+  #startOverlay {
+    position: fixed; inset: 0; background: #000; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; z-index: 10;
+  }
+  #startOverlay p { color: #ccc; font-size: 0.9rem; max-width: 320px; }
+  #calOverlay {
+    position: fixed; inset: 0; background: #000; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; z-index: 11;
+  }
+  #calOverlay p { color: #ccc; font-size: 0.9rem; max-width: 320px; margin: 0; }
+  #calFigure8 { width: 110px; height: 70px; }
+  #calFigure8 path {
+    fill: none; stroke: #34c759; stroke-width: 6; stroke-linecap: round;
+    stroke-dasharray: 260; stroke-dashoffset: 260;
+    animation: dashcal 2.6s linear infinite;
+  }
+  @keyframes dashcal { to { stroke-dashoffset: 0; } }
+  #calHeading { font-size: 2rem; font-weight: 700; color: #fff; }
+  #calSpread { font-size: 0.85rem; color: #999; }
+  #calBar { width: 220px; height: 8px; background: #222; border-radius: 4px; overflow: hidden; }
+  #calBarFill { height: 100%; width: 0%; background: #34c759; transition: width .2s; }
+  .calBtnRow { display: flex; gap: 10px; margin-top: 4px; }
+  .calBtnRow button { max-width: 150px; }
+  #magWarning {
+    display: none; align-items: center; gap: 10px; background: #3a2200; border: 1px solid #ff9500;
+    color: #ffcf80; border-radius: 12px; padding: 10px 12px; margin: 8px 4px; font-size: 0.82rem;
+  }
+  #magWarning button { flex: none; padding: 8px 12px; font-size: 0.8rem; background: #ff9500; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Polar Alignment</h1>
+  <div class="modeRow">
+    <button class="modeBtn active" id="modeNorth">Polo Nord (Polaris)</button>
+    <button class="modeBtn" id="modeSouth">Polo Sud (asse terrestre)</button>
+  </div>
+  <div class="sub" id="offsetLabel">Offset bussola: 0.00°</div>
+
+  <div id="magWarning">
+    <span>⚠️ Bussola instabile: possibile interferenza magnetica (metallo vicino, calamite, cavi). Consiglio ricalibrazione.</span>
+    <button id="magWarningBtn">Ricalibra</button>
+  </div>
+
+  <div class="quality-row">
+    <div class="qbox" id="q0" style="background:#d40000;color:#d40000"></div>
+    <div class="qbox" id="q1" style="background:#ff3b30;color:#ff3b30"></div>
+    <div class="qbox" id="q2" style="background:#ff9500;color:#ff9500"></div>
+    <div class="qbox" id="q3" style="background:#ffe600;color:#ffe600"></div>
+    <div class="qbox" id="q4" style="background:#34c759;color:#34c759"></div>
+    <span class="qlabel" id="qtext">--</span>
+  </div>
+
+  <svg viewBox="0 0 400 400">
+    <circle cx="200" cy="200" r="180" fill="none" stroke="#d40000" stroke-width="6"/>
+    <circle cx="200" cy="200" r="110" fill="none" stroke="#d40000" stroke-width="6"/>
+    <circle cx="200" cy="200" r="45" fill="none" stroke="#d40000" stroke-width="6"/>
+    <line x1="20" y1="200" x2="380" y2="200" stroke="#fff" stroke-width="4"/>
+    <line x1="200" y1="20" x2="200" y2="380" stroke="#fff" stroke-width="4"/>
+    <text x="200" y="16" fill="#d40000" font-size="20" text-anchor="middle">Alto</text>
+    <text x="200" y="398" fill="#d40000" font-size="20" text-anchor="middle">Basso</text>
+    <text x="10" y="206" fill="#d40000" font-size="20" text-anchor="start">S</text>
+    <text x="390" y="206" fill="#d40000" font-size="20" text-anchor="end">D</text>
+    <circle id="marker" cx="200" cy="200" r="12" fill="#34c759"/>
+  </svg>
+
+  <div class="stat-grid">
+    <div>Target Alt: <span id="tAlt">--</span></div>
+    <div>Target Az: <span id="tAz">--</span></div>
+    <div>Telefono Alt (beta): <span id="dAlt">--</span></div>
+    <div>Telefono Az (bussola): <span id="dAz">--</span></div>
+    <div>Errore Alt: <span id="eAlt">--</span></div>
+    <div>Errore Az: <span id="eAz">--</span></div>
+    <div>Errore totale: <span id="eTot">--</span></div>
+    <div>Lat/Lon: <span id="loc">--</span></div>
+  </div>
+
+  <div class="row">
+    <button id="calBtn">Calibra qui</button>
+    <button class="secondary" id="resetBtn">Reset offset</button>
+  </div>
+  <div class="row">
+    <button class="secondary" id="recalSensorsBtn">Ricalibra sensori (a otto)</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<div id="startOverlay">
+  <h1>Polar Align</h1>
+  <p>Serve accesso a posizione GPS e sensori di orientamento del telefono (bussola + inclinometro).
+  Tieni il telefono in verticale (ritratto) e usa il bordo superiore come mirino verso il cielo, come un mirino a canocchiale.</p>
+  <button id="startBtn" style="max-width:220px">Avvia</button>
+  <p style="font-size:0.75rem;color:#777">Nota: i sensori richiedono connessione HTTPS (o localhost). Se il file è aperto localmente su Android/iOS potrebbe essere necessario ospitarlo (es. GitHub Pages) perché i permessi funzionino.</p>
+</div>
+
+<div id="calOverlay">
+  <h1>Calibrazione bussola</h1>
+  <p>Muovi il telefono lentamente disegnando un <strong>otto</strong> nell'aria per qualche secondo, per far ricalibrare il magnetometro (utile soprattutto vicino a montature metalliche).</p>
+  <svg id="calFigure8" viewBox="0 0 110 70">
+    <path d="M55,35 C55,10 10,10 10,35 C10,60 55,60 55,35 C55,10 100,10 100,35 C100,60 55,60 55,35"/>
+  </svg>
+  <div id="calHeading">--°</div>
+  <div id="calBar"><div id="calBarFill"></div></div>
+  <div id="calSpread">Variazione rilevata: --</div>
+  <div class="calBtnRow">
+    <button class="secondary" id="calSkipBtn">Salta</button>
+    <button id="calDoneBtn" disabled>Fine (attendi...)</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  let lat = null, lon = null;
+  let calibrationOffset = 0;
+  let rawHeading = null, deviceAlt = null;
+  let mode = 'north'; // 'north' = Polaris, 'south' = polo sud celeste (asse di rotazione)
+  let hemisphereAutoSet = false;
+  let calibratingSensors = false;
+  let calSamples = []; // headings raccolti durante la calibrazione a otto
+  let calMinDuration = 6000; // ms minimi prima di poter concludere
+  let calStartTime = 0;
+  const STORE_KEY = 'polaralign:offset';
+  const MODE_KEY = 'polaralign:mode';
+
+  function toRad(d){ return d*Math.PI/180; }
+  function toDeg(r){ return r*180/Math.PI; }
+  function norm360(d){ d = d % 360; if(d<0) d+=360; return d; }
+  function normSigned(d){ d = norm360(d); if(d>180) d-=360; return d; }
+
+  // Polaris approx coordinates (epoch ~2025)
+  const POLARIS_RA_DEG = 37.955;
+  const POLARIS_DEC_DEG = 89.2641;
+
+  function computePolarisAltAz(latDeg, lonDeg, date){
+    const JD = date.getTime()/86400000 + 2440587.5;
+    const D = JD - 2451545.0;
+    const T = D/36525;
+    let GMST = 280.46061837 + 360.98564736629*D + 0.000387933*T*T - (T*T*T)/38710000;
+    GMST = norm360(GMST);
+    const LST = norm360(GMST + lonDeg);
+    const H = norm360(LST - POLARIS_RA_DEG);
+    const Hrad = toRad(H);
+    const latRad = toRad(latDeg);
+    const decRad = toRad(POLARIS_DEC_DEG);
+
+    const sinAlt = Math.sin(decRad)*Math.sin(latRad) + Math.cos(decRad)*Math.cos(latRad)*Math.cos(Hrad);
+    const alt = Math.asin(Math.min(1, Math.max(-1, sinAlt)));
+
+    let cosA = (Math.sin(decRad) - Math.sin(alt)*Math.sin(latRad)) / (Math.cos(alt)*Math.cos(latRad));
+    cosA = Math.min(1, Math.max(-1, cosA));
+    let A = toDeg(Math.acos(cosA));
+    if (Math.sin(Hrad) > 0) A = 360 - A;
+
+    return { alt: toDeg(alt), az: norm360(A) };
+  }
+
+  // Il Polo Sud Celeste (come il Nord) è il punto dove l'asse di rotazione
+  // terrestre interseca la sfera celeste: è FISSO rispetto all'orizzonte
+  // di un dato luogo (non ruota nel tempo come una stella). Non serve
+  // quindi nessun calcolo orario: Alt = |latitudine|, Az = 180° (Sud vero).
+  function computeSouthPoleAltAz(latDeg){
+    return { alt: Math.abs(latDeg), az: 180 };
+  }
+
+  function computeTarget(latDeg, lonDeg, date){
+    if (mode === 'south') return computeSouthPoleAltAz(latDeg);
+    return computePolarisAltAz(latDeg, lonDeg, date);
+  }
+
+  function setMode(newMode){
+    mode = newMode;
+    $('modeNorth').classList.toggle('active', mode === 'north');
+    $('modeSouth').classList.toggle('active', mode === 'south');
+    try { window.storage.set(MODE_KEY, mode, false); } catch(e){}
+    render();
+  }
+
+  async function loadOffset(){
+    try {
+      const r = await window.storage.get(STORE_KEY, false);
+      if (r && r.value != null) calibrationOffset = parseFloat(r.value) || 0;
+    } catch(e){ /* no saved value yet */ }
+    try {
+      const m = await window.storage.get(MODE_KEY, false);
+      if (m && (m.value === 'north' || m.value === 'south')) {
+        mode = m.value;
+        hemisphereAutoSet = true; // don't override an explicit saved choice
+        $('modeNorth').classList.toggle('active', mode === 'north');
+        $('modeSouth').classList.toggle('active', mode === 'south');
+      }
+    } catch(e){ /* no saved mode yet */ }
+    $('offsetLabel').textContent = 'Offset bussola: ' + calibrationOffset.toFixed(2) + '°';
+  }
+  async function saveOffset(){
+    $('offsetLabel').textContent = 'Offset bussola: ' + calibrationOffset.toFixed(2) + '°';
+    try { await window.storage.set(STORE_KEY, String(calibrationOffset), false); } catch(e){}
+  }
+
+  function setStatus(msg){ $('status').textContent = msg; }
+
+  let calBuckets = new Set();
+  let calTimer = null;
+  let initialCalibration = false;
+
+  // --- Rilevamento anomalie magnetiche (bussola instabile a telefono fermo) ---
+  const ANOMALY_WINDOW_MS = 1200;
+  const ANOMALY_MIN_SAMPLES = 6;
+  const ANOMALY_BETA_STABLE_DEG = 3;   // se il telefono è ~fermo, beta varia poco
+  const ANOMALY_HEADING_JUMP_DEG = 9;  // ma la bussola "salta" più di così => sospetto
+  const ANOMALY_SHOW_THRESHOLD = 8;
+  const ANOMALY_HIDE_THRESHOLD = 0;
+  let orientBuffer = [];
+  let anomalyScore = 0;
+  let lastCompassAccuracy = null;
+
+  function checkMagneticAnomaly(){
+    let suspicious = false;
+    if (orientBuffer.length >= ANOMALY_MIN_SAMPLES) {
+      const base = orientBuffer[0].heading;
+      const unwrapped = orientBuffer.map(s => base + normSigned(s.heading - base));
+      const headingSpread = Math.max(...unwrapped) - Math.min(...unwrapped);
+      const betas = orientBuffer.map(s => s.beta);
+      const betaSpread = Math.max(...betas) - Math.min(...betas);
+      if (betaSpread < ANOMALY_BETA_STABLE_DEG && headingSpread > ANOMALY_HEADING_JUMP_DEG) {
+        suspicious = true;
+      }
+    }
+    if (typeof lastCompassAccuracy === 'number' && lastCompassAccuracy >= 0 && lastCompassAccuracy > 20) {
+      suspicious = true;
+    }
+    anomalyScore = suspicious ? Math.min(20, anomalyScore + 1) : Math.max(0, anomalyScore - 1);
+    $('magWarning').style.display = anomalyScore >= ANOMALY_SHOW_THRESHOLD ? 'flex' : 'none';
+    if (anomalyScore <= ANOMALY_HIDE_THRESHOLD) $('magWarning').style.display = 'none';
+  }
+  // --- fine rilevamento anomalie ---
+
+  function startSensorCalibration(){
+    calibratingSensors = true;
+    calBuckets = new Set();
+    calStartTime = Date.now();
+    orientBuffer = [];
+    anomalyScore = 0;
+    $('magWarning').style.display = 'none';
+    $('calHeading').textContent = '--°';
+    $('calBarFill').style.width = '0%';
+    $('calSpread').textContent = 'Variazione rilevata: --';
+    $('calDoneBtn').disabled = true;
+    $('calDoneBtn').textContent = 'Fine (attendi...)';
+    $('calOverlay').style.display = 'flex';
+    clearTimeout(calTimer);
+    calTimer = setTimeout(() => {
+      $('calDoneBtn').disabled = false;
+      $('calDoneBtn').textContent = 'Fine calibrazione';
+    }, calMinDuration);
+  }
+
+  function onCalibrationFinished(){
+    calibratingSensors = false;
+    clearTimeout(calTimer);
+    $('calOverlay').style.display = 'none';
+    if (initialCalibration) {
+      initialCalibration = false;
+      setStatus('Attivo. Tieni il telefono verticale, bordo superiore verso il cielo.');
+      requestAnimationFrame(tick);
+    } else {
+      setStatus('Calibrazione sensori completata.');
+    }
+  }
+
+  function handleOrientation(e){
+    let heading;
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+      heading = e.webkitCompassHeading; // iOS: magnetic heading, clockwise from magnetic N
+      if (typeof e.webkitCompassAccuracy === 'number') lastCompassAccuracy = e.webkitCompassAccuracy;
+    } else if (e.alpha !== null && e.alpha !== undefined) {
+      heading = norm360(360 - e.alpha); // Android
+    } else {
+      return;
+    }
+    rawHeading = norm360(heading);
+    deviceAlt = e.beta; // pitch: altitude of top-edge sighting line
+
+    if (calibratingSensors) {
+      calBuckets.add(Math.floor(rawHeading / 10));
+      const coverage = calBuckets.size * 10;
+      $('calHeading').textContent = Math.round(rawHeading) + '°';
+      $('calBarFill').style.width = Math.min(100, coverage / 230 * 100) + '%';
+      $('calSpread').textContent = 'Copertura bussola: ' + coverage + '° (continua a muovere il telefono in tutte le direzioni)';
+      return; // durante la calibrazione non aggiorniamo il reticolo principale né l'anomaly detector
+    }
+
+    const now = Date.now();
+    orientBuffer.push({ t: now, heading: rawHeading, beta: deviceAlt });
+    while (orientBuffer.length && now - orientBuffer[0].t > ANOMALY_WINDOW_MS) orientBuffer.shift();
+    checkMagneticAnomaly();
+
+    render();
+  }
+
+  function render(){
+    if (lat === null || rawHeading === null || deviceAlt === null) return;
+    const target = computeTarget(lat, lon, new Date());
+    const headingTrue = norm360(rawHeading + calibrationOffset);
+
+    const errAz = normSigned(headingTrue - target.az);
+    const errAlt = deviceAlt - target.alt;
+    const errAzEff = errAz * Math.cos(toRad(target.alt));
+    const totalErr = Math.sqrt(errAzEff*errAzEff + errAlt*errAlt);
+
+    $('tAlt').textContent = target.alt.toFixed(2) + '°';
+    $('tAz').textContent = target.az.toFixed(2) + '°';
+    $('dAlt').textContent = deviceAlt.toFixed(2) + '°';
+    $('dAz').textContent = headingTrue.toFixed(2) + '°';
+    $('eAlt').textContent = errAlt.toFixed(2) + '°';
+    $('eAz').textContent = errAz.toFixed(2) + '°';
+    $('eTot').textContent = totalErr.toFixed(2) + '°';
+
+    // marker position: 180px ring = 5deg, scale linearly, clamp to view
+    const scale = 180/5;
+    let mx = 200 + Math.max(-190, Math.min(190, errAzEff*scale));
+    let my = 200 - Math.max(-190, Math.min(190, errAlt*scale));
+    const marker = $('marker');
+    marker.setAttribute('cx', mx);
+    marker.setAttribute('cy', my);
+
+    let color, label, level;
+    if (totalErr < 0.15) { color = '#34c759'; label = 'Perfetto'; level = 4; }
+    else if (totalErr < 0.5) { color = '#ffe600'; label = 'Ottimo'; level = 3; }
+    else if (totalErr < 1.5) { color = '#ff9500'; label = 'Buono'; level = 2; }
+    else if (totalErr < 4) { color = '#ff3b30'; label = 'Regola'; level = 1; }
+    else { color = '#d40000'; label = 'Lontano'; level = 0; }
+    marker.setAttribute('fill', color);
+    $('qtext').textContent = label;
+    for (let i=0;i<5;i++){ $('q'+i).classList.toggle('on', i<=level); }
+  }
+
+  function tick(){ render(); requestAnimationFrame(tick); }
+
+  async function start(){
+    setStatus('Richiesta permessi in corso...');
+
+    // Geolocation
+    try {
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(pos => {
+          lat = pos.coords.latitude; lon = pos.coords.longitude;
+          $('loc').textContent = lat.toFixed(3) + ', ' + lon.toFixed(3);
+          if (!hemisphereAutoSet) {
+            hemisphereAutoSet = true;
+            if (lat < 0) setMode('south');
+          }
+          resolve();
+        }, reject, { enableHighAccuracy: true, timeout: 10000 });
+      });
+      navigator.geolocation.watchPosition(pos => {
+        lat = pos.coords.latitude; lon = pos.coords.longitude;
+        $('loc').textContent = lat.toFixed(3) + ', ' + lon.toFixed(3);
+      });
+    } catch(e){
+      setStatus('Impossibile ottenere la posizione GPS: ' + (e.message||e));
+      return;
+    }
+
+    // iOS 13+ needs explicit permission
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res !== 'granted') { setStatus('Permesso sensori negato.'); return; }
+      } catch(e){ setStatus('Errore permesso sensori: ' + e.message); return; }
+    }
+
+    if ('ondeviceorientationabsolute' in window) {
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    } else {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+
+    await loadOffset();
+    $('startOverlay').style.display = 'none';
+    initialCalibration = true;
+    startSensorCalibration();
+  }
+
+  $('startBtn').addEventListener('click', start);
+  $('modeNorth').addEventListener('click', () => setMode('north'));
+  $('modeSouth').addEventListener('click', () => setMode('south'));
+
+  $('calBtn').addEventListener('click', () => {
+    if (lat === null || rawHeading === null) { setStatus('Attendi che i sensori siano pronti.'); return; }
+    const target = computeTarget(lat, lon, new Date());
+    // set offset so that current rawHeading + offset == target.az
+    let candidate = normSigned(target.az - rawHeading);
+    calibrationOffset = candidate;
+    saveOffset();
+    setStatus('Calibrazione salvata.');
+  });
+
+  $('resetBtn').addEventListener('click', () => {
+    calibrationOffset = 0;
+    saveOffset();
+    setStatus('Offset azzerato.');
+  });
+
+  $('recalSensorsBtn').addEventListener('click', () => {
+    initialCalibration = false;
+    startSensorCalibration();
+  });
+  $('calDoneBtn').addEventListener('click', onCalibrationFinished);
+  $('calSkipBtn').addEventListener('click', onCalibrationFinished);
+  $('magWarningBtn').addEventListener('click', () => {
+    initialCalibration = false;
+    startSensorCalibration();
+  });
+})();
+</script>
+</body>
+</html>
