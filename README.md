@@ -14,20 +14,39 @@ A browser-based polar alignment tool that uses your phone's GPS, compass, and gy
 
 ## Usage
 
-1. Open `polar-align.html` in a mobile browser (see note below on HTTPS).
-2. Grant location and motion/orientation sensor permissions when prompted.
-3. Follow the figure-8 calibration prompt.
-4. Hold the phone vertically (portrait), using the top edge as a sighting line toward the sky, and move it until the crosshair centers green.
+1. Open the app in a mobile browser via the GitHub Pages URL (see below).
+2. Tap **"Install app"** / **"Add to Home Screen"** from your browser's menu — it installs like a native app, with its own icon and a fullscreen window (no browser bar).
+3. Grant location and motion/orientation sensor permissions when prompted.
+4. Follow the figure-8 calibration prompt.
+5. Hold the phone vertically (portrait), using the top edge as a sighting line toward the sky, and move it until the crosshair centers green.
+
+## Install as an app (PWA)
+
+This is a full Progressive Web App: it has a manifest, home-screen icons, and a service worker for offline use.
+
+- **Android (Chrome)**: open the site → menu (⋮) → "Install app" or "Add to Home screen".
+- **iOS (Safari)**: open the site → Share button → "Add to Home Screen".
+
+Once installed, it opens fullscreen with its own icon, just like a native app.
 
 ## Important: HTTPS required
 
-Device orientation and geolocation sensors only work in a **secure context** (HTTPS or localhost). Opening the file directly from local storage (`file://`) will likely not trigger permission prompts on iOS/Android.
+Device orientation and geolocation sensors only work in a **secure context** (HTTPS or localhost). Opening the file directly from local storage (`file://`) will likely not trigger permission prompts on iOS/Android — that's also required for the "Add to Home Screen" install prompt to appear.
 
 The easiest way to serve it securely is via **GitHub Pages**:
 
 1. Repo → Settings → Pages
 2. Source: Deploy from a branch → `main` → `/ (root)`
-3. Save, then open the generated `https://andrea300992.github.io/polar-alignment/polar-align.html` URL on your phone.
+3. Save, then open the generated `https://andrea300992.github.io/polar-alignment/` URL on your phone.
+
+## Repository structure
+
+```
+index.html          – the app itself
+manifest.json        – PWA manifest (name, icons, display mode)
+sw.js                – service worker (offline caching)
+icons/                – app icons (192px, 512px, maskable, apple-touch)
+```
 
 ## Accuracy note
 
